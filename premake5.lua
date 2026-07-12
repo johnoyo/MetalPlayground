@@ -1,6 +1,6 @@
 -- main solution file.
 workspace "MetalPlayground"
-    architecture "x64"
+    architecture "ARM64"
 
     configurations 
     { 
@@ -20,6 +20,7 @@ project "MetalEngine"
     language "C++"
     cppdialect "C++20"
     staticruntime "On"
+    multiprocessorcompile "On"
 
     -- Directories for binary and intermediate files.
     targetdir ("bin/" .. outputdir .. "/%{prj.name}")
@@ -28,13 +29,13 @@ project "MetalEngine"
     files 
     { 
         "%{prj.name}/src/**.h", 
-        "%{prj.name}/src/**.cpp"
+        "%{prj.name}/src/**.cpp",
+        "%{prj.name}/src/**.mm",
     }
 
     defines
 	{
 		"_CRT_SECURE_NO_WARNINGS",
-		"GLFW_INCLUDE_NONE"
 	}
 
     -- Include directories.
@@ -81,6 +82,7 @@ project "MetalApp"
     language "C++"
     cppdialect "C++20"
     staticruntime "On"
+    multiprocessorcompile "On"
 
     -- Directories for binary and intermediate files.
     targetdir ("bin/" .. outputdir .. "/%{prj.name}")
@@ -95,7 +97,6 @@ project "MetalApp"
     defines
 	{
 		"_CRT_SECURE_NO_WARNINGS",
-		"GLFW_INCLUDE_NONE"
 	}
 
     -- Include directories.
@@ -112,9 +113,23 @@ project "MetalApp"
         "Dependencies/GLM",
     }
 
+    libdirs
+    {
+        "Dependencies/GLFW/glfw-3.4.bin.MACOS/lib-arm64",
+    }
+
     links
     {
-        "MetalEngine"
+        "MetalEngine",
+
+        "glfw3",
+
+        "Cocoa.framework",
+        "IOKit.framework",
+        "CoreVideo.framework",
+        "QuartzCore.framework",
+        "Metal.framework",
+        "Foundation.framework"
     }
 
     filter "system:macosx"
