@@ -1,0 +1,6 @@
+[submodule "Dependencies/Metal-Cpp"]
+	path = Dependencies/Metal-Cpp
+	url = https://github.com/apple/metal-cpp.git
+[submodule "Dependencies/GLM"]
+	path = Dependencies/GLM
+	url = https://github.com/g-truc/glm.git
