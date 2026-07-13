@@ -33,5 +33,7 @@ namespace MTLE
         
         MTL::SharedEvent* m_FrameAvailableSharedEvent = nullptr;
         size_t m_FrameNum = 0;
+        
+        MTL::RenderPipelineState* m_Pso = nullptr;
     };
 }
