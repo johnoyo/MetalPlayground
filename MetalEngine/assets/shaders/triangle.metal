@@ -13,11 +13,16 @@ struct VertexOut
     float4 color;
 };
 
+struct FrameUniforms
+{
+    float4x4 rotation;
+};
+
 vertex
-VertexOut vertexMain(VertexIn in [[stage_in]])
+VertexOut vertexMain(VertexIn in [[stage_in]], constant FrameUniforms& uniforms [[buffer(1)]])
 {
     VertexOut out;
-    out.position = in.position;
+    out.position = uniforms.rotation * in.position;
     out.color = in.color;
     return out;
 }

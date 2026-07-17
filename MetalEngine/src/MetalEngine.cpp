@@ -2,6 +2,8 @@
 
 #include "MtlUtils.h"
 
+#include <glm/gtc/matrix_transform.hpp>
+
 #include <iostream>
 #include <fstream>
 #include <filesystem>
@@ -190,19 +192,28 @@ namespace MTLE
 
             // Initial contents. For truly dynamic geometry, move this memcpy into
             // Run() and write fresh data into m_VertexBuffers[frameIdx] each frame
-            // instead — the triple-buffering here already supports that safely.
+            // instead, the triple-buffering here already supports that safely.
             memcpy(m_VertexBuffers[i]->contents(), triangleVertices.data(), vertexBufferSize);
-
             m_ResidencySet->addAllocation(m_VertexBuffers[i]);
+            
+            // Uniform buffer. One per frame in flight, same rationale as the vertex
+            // buffers: the CPU must never write into a slot the GPU might still be
+            // reading. Contents are written fresh in Run() each frame, so no initial
+            // memcpy is needed here.
+            m_UniformBuffers[i] = m_Device->newBuffer(sizeof(FrameUniforms), MTL::ResourceStorageModeShared);
+            const std::string ubLabel = "Frame Uniforms (frame " + std::to_string(i) + ")";
+            m_UniformBuffers[i]->setLabel(NS::String::string(ubLabel.c_str(), NS::UTF8StringEncoding));
+            m_ResidencySet->addAllocation(m_UniformBuffers[i]);
 
             // Argument table, one per frame in flight, permanently bound to that
             // frame's buffer, so we never mutate a table the GPU might still be reading.
             auto* argTableDesc = MTL4::ArgumentTableDescriptor::alloc();
-            argTableDesc->setMaxBufferBindCount(1);
+            argTableDesc->setMaxBufferBindCount(2);
             m_ArgTables[i] = m_Device->newArgumentTable(argTableDesc, /* error */ nullptr);
             argTableDesc->release();
 
             m_ArgTables[i]->setAddress(m_VertexBuffers[i]->gpuAddress(), VERTEX_BUFFER_BINDING_IDX);
+            m_ArgTables[i]->setAddress(m_UniformBuffers[i]->gpuAddress(), UNIFORM_BUFFER_BINDING_IDX);
         }
         
         m_ResidencySet->commit();
@@ -228,6 +239,13 @@ namespace MTLE
             const uint8_t frameIdx = m_FrameNum % MAX_FRAMES_IN_FLIGHT;
             MTL4::CommandAllocator* cmdAlloc = m_CommandAllocators[frameIdx];
             cmdAlloc->reset();
+            
+            // Safe to write now: the wait above (when m_FrameNum >= MAX_FRAMES_IN_FLIGHT)
+            // guarantees the GPU is finished with whatever command buffer last read
+            // m_UniformBuffers[frameIdx].
+            FrameUniforms uniforms{};
+            uniforms.rotation = glm::rotate(glm::mat4(1.0f), static_cast<float>(glfwGetTime()), glm::vec3(0.0f, 0.0f, 1.0f));
+            memcpy(m_UniformBuffers[frameIdx]->contents(), &uniforms, sizeof(FrameUniforms));
             
             CA::MetalDrawable* surface = m_MetalLayer->nextDrawable();
             
@@ -269,6 +287,7 @@ namespace MTLE
         for (uint8_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
         {
             m_VertexBuffers[i]->release();
+            m_UniformBuffers[i]->release();
             m_ArgTables[i]->release();
         }
         

@@ -17,9 +17,16 @@ namespace MTLE
         alignas(16) glm::vec4 color;
     };
 
+    struct FrameUniforms
+    {
+        glm::mat4 rotation;
+    };
+    static_assert(sizeof(FrameUniforms) == 64, "FrameUniforms must match the MSL layout exactly");
+
     static constexpr auto MAX_FRAMES_IN_FLIGHT = 3u;
     static constexpr auto PIXEL_FORMAT = MTL::PixelFormatBGRA8Unorm_sRGB;
     static constexpr uint32_t VERTEX_BUFFER_BINDING_IDX = 0;
+    static constexpr uint32_t UNIFORM_BUFFER_BINDING_IDX = 1;
 
     class MetalEngine
     {
@@ -45,6 +52,7 @@ namespace MTLE
         
         MTL::RenderPipelineState* m_Pso = nullptr;
         std::array<MTL::Buffer*, MAX_FRAMES_IN_FLIGHT> m_VertexBuffers;
+        std::array<MTL::Buffer*, MAX_FRAMES_IN_FLIGHT> m_UniformBuffers;
         std::array<MTL4::ArgumentTable*, MAX_FRAMES_IN_FLIGHT> m_ArgTables;
         MTL::ResidencySet* m_ResidencySet = nullptr;
     };
