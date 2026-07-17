@@ -121,12 +121,28 @@ namespace MTLE
         fragmentFn->setLibrary(library);
         fragmentFn->setName(NS::String::string("fragmentMain", NS::UTF8StringEncoding));
         
+        // Vertex buffer layout.
+        MTL::VertexDescriptor* vertexDesc = MTL::VertexDescriptor::alloc()->init();
+        
+        vertexDesc->attributes()->object(0)->setFormat(MTL::VertexFormatFloat4); // position
+        vertexDesc->attributes()->object(0)->setOffset(offsetof(Vertex, position));
+        vertexDesc->attributes()->object(0)->setBufferIndex(VERTEX_BUFFER_BINDING_IDX);
+        
+        vertexDesc->attributes()->object(1)->setFormat(MTL::VertexFormatFloat4); // color
+        vertexDesc->attributes()->object(1)->setOffset(offsetof(Vertex, color));
+        vertexDesc->attributes()->object(1)->setBufferIndex(VERTEX_BUFFER_BINDING_IDX);
+        
+        vertexDesc->layouts()->object(VERTEX_BUFFER_BINDING_IDX)->setStride(sizeof(Vertex));
+        
         // Build pso.
         MTL4::RenderPipelineDescriptor* pipelineDesc = MTL4::RenderPipelineDescriptor::alloc()->init();
         pipelineDesc->setLabel(NS::String::string("Hello Triangle PSO", NS::UTF8StringEncoding));
         pipelineDesc->setVertexFunctionDescriptor(vertexFn);
         pipelineDesc->setFragmentFunctionDescriptor(fragmentFn);
         pipelineDesc->colorAttachments()->object(0)->setPixelFormat(PIXEL_FORMAT);
+        pipelineDesc->setVertexDescriptor(vertexDesc);
+        
+        vertexDesc->release();
 
         NS::Error* psoError = nullptr;
         m_Pso = compiler->newRenderPipelineState(pipelineDesc, (MTL4::CompilerTaskOptions*)nullptr, &psoError);
@@ -141,6 +157,57 @@ namespace MTLE
         fragmentFn->release();
         pipelineDesc->release();
         compiler->release();
+        
+        // Residency sets.
+        auto* residencySetDesc = MTL::ResidencySetDescriptor::alloc();
+        m_ResidencySet = m_Device->newResidencySet(residencySetDesc, nullptr );
+        residencySetDesc->release();
+        
+        // Vertex data.
+        static const std::array<Vertex, 3> triangleVertices =
+        {
+            Vertex{ .position = glm::vec4( 0.0f,  0.5f, 0.f, 1.f), .color = glm::vec4(1.0f, 0.f, 0.f, 1.f) },
+            Vertex{ .position = glm::vec4( 0.5f, -0.5f, 0.f, 1.f), .color = glm::vec4(0.0f, 1.f, 0.f, 1.f) },
+            Vertex{ .position = glm::vec4(-0.5f, -0.5f, 0.f, 1.f), .color = glm::vec4(0.0f, 0.f, 1.f, 1.f) },
+        };
+        constexpr size_t vertexBufferSize = sizeof(Vertex) * triangleVertices.size();
+
+        // Argument table.
+        //
+        // (Deprecated) We are gonna have one argument table, this is similar to the 4 descriptor sets we have on vulkan.
+        // And we update each time with a call to argTable->setAdress the resources needed.
+        // The other diference is that the vertex buffers also live in this argument table.
+        // We are gonna put them after the 4 descriptors at slot 4.
+        //
+        // Alternative, have an argument table per vulkan descriptor set + extra for vertex buffer data.
+        for (uint8_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
+        {
+            // Buffer.
+            m_VertexBuffers[i] = m_Device->newBuffer(vertexBufferSize, MTL::ResourceStorageModeShared);
+
+            const std::string label = "Vertex Buffer (frame " + std::to_string(i) + ")";
+            m_VertexBuffers[i]->setLabel(NS::String::string(label.c_str(), NS::UTF8StringEncoding));
+
+            // Initial contents. For truly dynamic geometry, move this memcpy into
+            // Run() and write fresh data into m_VertexBuffers[frameIdx] each frame
+            // instead — the triple-buffering here already supports that safely.
+            memcpy(m_VertexBuffers[i]->contents(), triangleVertices.data(), vertexBufferSize);
+
+            m_ResidencySet->addAllocation(m_VertexBuffers[i]);
+
+            // Argument table, one per frame in flight, permanently bound to that
+            // frame's buffer, so we never mutate a table the GPU might still be reading.
+            auto* argTableDesc = MTL4::ArgumentTableDescriptor::alloc();
+            argTableDesc->setMaxBufferBindCount(1);
+            m_ArgTables[i] = m_Device->newArgumentTable(argTableDesc, /* error */ nullptr);
+            argTableDesc->release();
+
+            m_ArgTables[i]->setAddress(m_VertexBuffers[i]->gpuAddress(), VERTEX_BUFFER_BINDING_IDX);
+        }
+        
+        m_ResidencySet->commit();
+        m_CommandQueue->addResidencySet(m_ResidencySet);
+        m_CommandQueue->addResidencySet(m_MetalLayer->residencySet());
     }
 
     void MetalEngine::Run()
@@ -178,6 +245,7 @@ namespace MTLE
             MTL4::RenderCommandEncoder* encoder = m_CommandBuffer->renderCommandEncoder(passDesc);
             
             encoder->setRenderPipelineState(m_Pso);
+            encoder->setArgumentTable(m_ArgTables[frameIdx], MTL::RenderStageVertex);
             encoder->drawPrimitives(MTL::PrimitiveTypeTriangle, NS::UInteger(0), NS::UInteger(3));
             
             encoder->endEncoding();
@@ -198,6 +266,15 @@ namespace MTLE
 
     void MetalEngine::Clean()
     {
+        for (uint8_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
+        {
+            m_VertexBuffers[i]->release();
+            m_ArgTables[i]->release();
+        }
+        
+        m_ResidencySet->release();
+        m_Pso->release();
+        
         glfwDestroyWindow(m_Window);
         glfwTerminate();
     }

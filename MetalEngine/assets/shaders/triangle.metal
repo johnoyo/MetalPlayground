@@ -1,19 +1,10 @@
 #include <metal_stdlib>
-
 using namespace metal;
 
-constant float4 positions[3] =
+struct VertexIn
 {
-    {  0.0,  0.5, 0.0, 1.0 },
-    {  0.5, -0.5, 0.0, 1.0 },
-    { -0.5, -0.5, 0.0, 1.0 }
-};
-
-constant float4 colors[3] =
-{
-    { 1, 0, 0, 1 },
-    { 0, 1, 0, 1 },
-    { 0, 0, 1, 1 }
+    float4 position [[attribute(0)]];
+    float4 color    [[attribute(1)]];
 };
 
 struct VertexOut
@@ -23,13 +14,12 @@ struct VertexOut
 };
 
 vertex
-VertexOut vertexMain(uint id [[vertex_id]])
+VertexOut vertexMain(VertexIn in [[stage_in]])
 {
-    return
-    {
-        .position = positions[ id ],
-        .color    = colors[ id ]
-    };
+    VertexOut out;
+    out.position = in.position;
+    out.color = in.color;
+    return out;
 }
 
 fragment

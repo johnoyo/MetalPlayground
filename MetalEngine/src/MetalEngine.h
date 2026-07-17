@@ -3,14 +3,23 @@
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
+#include <glm/glm.hpp>
+
 #include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
 #include <QuartzCore/QuartzCore.hpp>
 
 namespace MTLE
 {
+    struct Vertex
+    {
+        alignas(16) glm::vec4 position;
+        alignas(16) glm::vec4 color;
+    };
+
     static constexpr auto MAX_FRAMES_IN_FLIGHT = 3u;
     static constexpr auto PIXEL_FORMAT = MTL::PixelFormatBGRA8Unorm_sRGB;
+    static constexpr uint32_t VERTEX_BUFFER_BINDING_IDX = 0;
 
     class MetalEngine
     {
@@ -35,5 +44,8 @@ namespace MTLE
         size_t m_FrameNum = 0;
         
         MTL::RenderPipelineState* m_Pso = nullptr;
+        std::array<MTL::Buffer*, MAX_FRAMES_IN_FLIGHT> m_VertexBuffers;
+        std::array<MTL4::ArgumentTable*, MAX_FRAMES_IN_FLIGHT> m_ArgTables;
+        MTL::ResidencySet* m_ResidencySet = nullptr;
     };
 }
