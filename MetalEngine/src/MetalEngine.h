@@ -14,14 +14,16 @@ namespace MTLE
     struct Vertex
     {
         alignas(16) glm::vec4 position;
-        alignas(16) glm::vec4 color;
+        alignas(16) glm::vec2 texCoord;
     };
 
     struct FrameUniforms
     {
-        glm::mat4 rotation;
+        glm::mat4 mvp;
     };
     static_assert(sizeof(FrameUniforms) == 64, "FrameUniforms must match the MSL layout exactly");
+
+    static constexpr uint32_t CUBE_INDEX_COUNT = 36;
 
     static constexpr auto MAX_FRAMES_IN_FLIGHT = 3u;
     static constexpr auto PIXEL_FORMAT = MTL::PixelFormatBGRA8Unorm_sRGB;
@@ -34,6 +36,10 @@ namespace MTLE
         void Init();
         void Run();
         void Clean();
+        
+    private:
+        MTL::Texture* CreateDepthTexture(uint32_t width, uint32_t height, uint8_t frameIdx);
+        void CreateAndUploadTexture(const std::string& path);
         
     private:
         GLFWwindow* m_Window;
@@ -54,6 +60,16 @@ namespace MTLE
         std::array<MTL::Buffer*, MAX_FRAMES_IN_FLIGHT> m_VertexBuffers;
         std::array<MTL::Buffer*, MAX_FRAMES_IN_FLIGHT> m_UniformBuffers;
         std::array<MTL4::ArgumentTable*, MAX_FRAMES_IN_FLIGHT> m_ArgTables;
+        
         MTL::ResidencySet* m_ResidencySet = nullptr;
+        
+        std::array<MTL::Texture*, MAX_FRAMES_IN_FLIGHT> m_DepthTextures;
+        MTL::Buffer* m_IndexBuffer = nullptr;
+        MTL::DepthStencilState* m_DepthStencilState = nullptr;
+        uint32_t m_DepthWidth = 0;
+        uint32_t m_DepthHeight = 0;
+        
+        MTL::Texture* m_CubeTexture = nullptr;
+        MTL::SamplerState* m_Sampler = nullptr;
     };
 }

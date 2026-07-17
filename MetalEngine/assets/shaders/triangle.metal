@@ -4,31 +4,31 @@ using namespace metal;
 struct VertexIn
 {
     float4 position [[attribute(0)]];
-    float4 color    [[attribute(1)]];
+    float2 texCoord [[attribute(1)]];
 };
 
 struct VertexOut
 {
     float4 position [[position]];
-    float4 color;
+    float2 texCoord;
 };
 
 struct FrameUniforms
 {
-    float4x4 rotation;
+    float4x4 mvp;
 };
 
 vertex
 VertexOut vertexMain(VertexIn in [[stage_in]], constant FrameUniforms& uniforms [[buffer(1)]])
 {
     VertexOut out;
-    out.position = uniforms.rotation * in.position;
-    out.color = in.color;
+    out.position = uniforms.mvp * in.position;
+    out.texCoord = in.texCoord;
     return out;
 }
 
 fragment
-float4 fragmentMain(const VertexOut in [[stage_in]])
+float4 fragmentMain(VertexOut in [[stage_in]], texture2d<float> colorTexture [[texture(0)]], sampler colorSampler [[sampler(0)]])
 {
-    return in.color;
+    return colorTexture.sample(colorSampler, in.texCoord);
 }
